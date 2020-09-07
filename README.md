@@ -1,10 +1,8 @@
 # Raspberry-Pi-HQ-Camera-Livestream-with-Fedora
-This is an instructional document to show you how to use the Raspberry Pi 4 with HQ Camera along with elgato cam link 4k over HDMI to output extremely low latency high quality video feed to a Fedora computer, for example for Google Meet or other video conferencing applications. 
-
 
 ### Introduction:
 
-The purpose of this instructional guide is so that you can use a Linux computer to stream video feed from a Raspberry Pi using HQ camera in live meetings, such as Google Meet or WebEx or Skype or anything else. I've confirmed this works with Google Meet on firefox and chrome. 
+The purpose of this instructional guide is so that you can use a Linux computer running Fedora with elgato cam link to stream video feed with extremely low latency from a Raspberry Pi using HQ camera in live meetings, such as Google Meet or WebEx or Skype or anything else. I've confirmed this works with Google Meet on firefox and chrome. 
 
 Given the limitations of the Pi hardware the best we can hope for is 1080p, I have gotten a decently clear high quality picture with very close to 0 latency using this setup. I have seen other guides online which are in a similar realm of using elgato cam link with a external camera (not Pi camera) but to my knowledge I have not seen anyone else successfully be able to use the Raspberry Pi HQ camera with elgato cam link on Fedora, this has taken me significant debugging. My method uses ffmpeg to grab the video input from the elgato usb3 input, and outputs the image to a dummy device using v4l2loopback. 
 
@@ -12,7 +10,7 @@ The larger idea behind this project is building on capabilities of Fedora and Pi
 
 If anyone has any suggestions for improvement please feel free to make a pull request / contact me. Would love to make this better.
 
-Disclaimer:  I am not claiming that any of this is my original work, the only development I've made is in bringing together information from diverse sources to achieve the desired outcome. 
+Disclaimer:  I am not claiming that any of this is my original work, the only original work I've done is in bringing together information from diverse sources to achieve the desired outcome, as well as using some slightly different command line options. 
 
 ### Overview of hardware
 
@@ -21,7 +19,7 @@ For my setup I am using the following. I note the memory and processor because t
 - Raspberry Pi 4 with 4GB of memory, with the 6mm wide angle lens
 - Fedora 32 desktop system with 4GB of memory, Ryzen 5 1600
 - Elgato cam link 4k
-- I used minihdmi to full size HDMI converter to plug into the Pi, then a 6foot HDMI cord from that to the elgato cam link. Available on Amazon.
+- I used minihdmi (Pi4 hdmi size) to full size HDMI converter to plug into the Pi, then a 6foot HDMI cord from that to the elgato cam link. The elgato cam link plugs into a usb3 port on the Fedora system. Must be usb3. 
 
 ### Fedora Setup
 
@@ -36,13 +34,16 @@ Initializing for streaming:
 
 - with v4l2loopback package installed, you can now run this command to intialize the module. The exclusive_caps option is critical so that the dummy video interface is exposed to Google Chrome. You may have success on other browsers without that option. If for any reason you run the modprobe command without those options, you will need to unload that module and reload it.
 
+~~~
 sudo modprobe v4l2loopback devices=1 exclusive_caps=1
-
+~~~
 ### Raspberry Pi Setup
 
 On the Raspberry Pi, the first thing you need to do is ensure that you have a properly functioning camera with video output that shows full color and a decent framerate. The best way to test this is to connect the Pi to a monitor with HDMI cord, no cam link. Then do a simple test of raspivid, such as:
 
+~~~
 raspivid -t 0
+~~~
 
 If that doesn't work as expected, work through the official Raspberry Pi documentation for the HQ camera, then continue once you see the output you expect. 
 
@@ -52,9 +53,7 @@ In the /boot/config.txt file, place the following lines, what this does is set t
 
 ~~~
 hdmi_drive=2
-
 hdmi_group=1
-
 hdmi_mode=16
 ~~~
 
@@ -62,11 +61,15 @@ reference:  [https://www.raspberrypi.org/forums/viewtopic.php?t=5851](https://ww
 
 I also suggest that you increase the gpu memory. I placed this line in the /boot/config.txt file to set 384mb of memory to the gpu.
 
+~~~
 gpu_mem=384
+~~~
 
-This last command should help you stop the HDMI from blanking due to inactivity, if you run into that issue
+This last command should help you stop the HDMI from blanking due to inactivity, if you run into that issue try using this in /boot/config.txt
 
+~~~
 hdmi_blanking=1
+~~~
 
 ### Streaming
 
@@ -74,11 +77,14 @@ After your Raspberry Pi and Fedora systems are booted, and you are connected via
 
 From the **Fedora** **terminal**, run your ffmpeg command like so. Note that this is a result of a lot of taking commands and options from random sources. It works for me. You could probably make it better.
 
+~~~
 LD_PRELOAD=/home/admin/Documents/av_util/camlink/camlink.so \
 ffmpeg -f v4l2 -input_format yuyv422 -vcodec rawvideo \
 -framerate 30 -video_size 1920x1080 -i /dev/video0 -pix_fmt yuv420p \
 -c:v libx264  -preset ultrafast -codec copy -f v4l2 /dev/video2 -loglevel debug
+~~~
 
+[some notes, I am not an ffmpeg expert, read the docs for authoritative information]
 - LD_PRELOAD command part is from the Repo where we got the workaround to disable 2 out of 3 of the yuv outputs. This helps ensure that there won't be color issues and that the ffmpeg application uses the correct output stream from the elgato output. You will need to change the file path to match where you downloaded this git repo.
 - -f vl42 uses the v4l2loopback driver, so you can use the /dev/video0 as an input
 - input_format yuyv422 sets the input format of the video
@@ -102,9 +108,13 @@ At this point, I'd go back to your Fedora system, and open a Google Meeting and 
 
 Once you're able to verify that you see the Pi terminal, you can now run raspivid command to start your stream. I'm still testing different commands using raspivid and raspidyuv. Here are some examples of syntax you can try:
 
+~~~
 raspividyuv -t 0 --width 1920 --height 1080 -fps 30
-
+~~~
+or
+~~~
 raspivid -t 0 -w 1920 -h 1080 -fps 30 -b 120000
+~~~
 
 Note that while your first tempation may be to increase all the settings to their maximums, try to keep an eye on "top" output on the Pi and on your Fedora system. If you use high quality settings, you may see your processor hit 120-200% utilization, which probably isn't good. Using variations on the first command, raspividyuv, I was able to get consistent output using about 50% cpu on the Fedora system. 
 
@@ -112,21 +122,35 @@ That's it! Just remember, if you end the ffmpeg stream and want to start it agai
 
 ### Debugging / Helper utilities [addendum]
 
-- this is a helper command that will allow you to query the available video devices on your Fedora system - this will help you make sure your ffmpeg syntax is correct, that you are specifying the correct device, such as /dev/video0 for example. You want the first /dev/ device to be the input (from elgato/Pi) and the second /dev/ to be the dummy video output.
+- this is a helper command that will allow you to query the available video devices on your Fedora system using v4l2loopback - this will help you make sure your ffmpeg syntax is correct, that you are specifying the correct device, such as /dev/video0 for example. You want the first /dev/ device to be the input (from elgato/Pi) and the second /dev/ to be the dummy video output.
 
+~~~
 v4l2-ctl --list-devices
+~~~
 
 - if you run into issues with being able to show your dummy video interface in Google Chrome, you may want to run this command on Fedora that will help you check if you properly have exclusive_caps option enabled. If its not enabled, you need to unload and reload the module with correct options. If you hit issues there, just reboot and try again.
 
+~~~
 cat /proc/modules | cut -f 1 -d " " | while read module; do  \
 echo "Module: $module";  if [ -d "/sys/module/$module/parameters" ]; \
 then   ls /sys/module/$module/parameters/ | while read parameter; \
 do    echo -n "Parameter: $parameter --> ";    \
 cat /sys/module/$module/parameters/$parameter;  \
  done;  fi;  echo; done | egrep -i v4l2 -C 5
+ ~~~
 
 - this is a helper command on the Raspberry Pi to help you check what type of output you're sending. You want to be sending 1920x1080p at 60ghz, that's what worked for me. I would only suggest this after you've done some more basic checks.
 
-You can dump the EDID of the monitor with [# tvservice -d file.txt]
+You can dump the EDID of the monitor with 
 
-and then parse the edid with [# edidparser file.txt]
+~~~
+# tvservice -d file.txt
+~~~
+
+and then parse the edid with
+
+~~~
+edidparser file.txt
+~~~
+
+Enjoy
