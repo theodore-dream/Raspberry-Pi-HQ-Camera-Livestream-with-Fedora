@@ -115,6 +115,10 @@ or
 ~~~
 raspivid -t 0 -w 1920 -h 1080 -fps 30 -b 120000
 ~~~
+or one that I have had some success with
+~~~
+raspivid -t 0 -w 1920 -h 1080 -fps 20 -qp 40 -b 0 -br 50 -co 35 -cd H264 -lev 4.2 -ex backlit -ISO 500 -ev -4 -sh 15 -awb auto -v
+~~~
 
 Note that while your first tempation may be to increase all the settings to their maximums, try to keep an eye on "top" output on the Pi and on your Fedora system. If you use high quality settings, you may see your processor hit 120-200% utilization, which probably isn't good. Using variations on the first command, raspividyuv, I was able to get consistent output using about 50% cpu on the Fedora system. 
 
